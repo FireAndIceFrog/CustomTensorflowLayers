@@ -1,0 +1,22 @@
+{
+  "type": "module",
+  "name": "custom-tensorflow-layers",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "module": "dist/index.es.js",
+  "files": ["dist"],
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rollup -c",
+    "watch": "rollup -cw"
+  },
+  "keywords": [],
+  "author": "Mathew Lawrence",
+  "license": "ISC",
+  "devDependencies": {
+    "rollup": "^2.58.1",
+    "rollup-plugin-typescript2": "^0.30.0",
+    "typescript": "^4.4.4"
+  }
+}
