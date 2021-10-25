@@ -1,1 +1,1 @@
-export default function add(): number;
+export * as Time2Vec from "./Time2Vec";

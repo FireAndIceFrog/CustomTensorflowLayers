@@ -1,3 +1,1 @@
-export default function add() {
-    return 1+2
-}
+export * as Time2Vec from "./Time2Vec"
