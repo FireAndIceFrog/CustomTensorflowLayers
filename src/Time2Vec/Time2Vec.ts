@@ -1,17 +1,15 @@
-import { LayerVariable, Shape, initializers, SymbolicTensor } from "@tensorflow/tfjs-layers";
-import { Tensor, sin, cos, dot, add as scalarAdd, mul} from "@tensorflow/tfjs-core"
-import { concatenate, Layer } from "@tensorflow/tfjs-layers/dist/exports_layers"
+import * as tf from "@tensorflow/tfjs"
 
 type activationType = 'sin' | "cos"
 type Kwargs = {[key: string]: any}
 
-export class Time2Vec extends Layer {
+export class Time2Vec extends tf.layers.Layer {
     k: number;
     p_activation: activationType;
-    wb: LayerVariable
-    bb: LayerVariable
-    wa: LayerVariable
-    ba: LayerVariable
+    wb: tf.LayerVariable;
+    bb: tf.LayerVariable;
+    wa: tf.LayerVariable;
+    ba: tf.LayerVariable;
 
     constructor(kernel_size: number, periodic_activation: activationType ='sin') {
         super({
@@ -23,22 +21,22 @@ export class Time2Vec extends Layer {
         this.p_activation = periodic_activation
     }
 
-    build(inputShape: Shape) {
+    build(inputShape: tf.Shape) {
         this.built = true;
         this.wb = this.addWeight(
             "wb",
-            [1,1] as Shape,
+            [1,1] as tf.Shape,
             "float32",
-            initializers.glorotUniform({}),
+            tf.initializers.glorotUniform({}),
             undefined,
             true
         )
         
         this.bb = this.addWeight(
             "bb",
-            [1,1] as Shape,
+            [1,1] as tf.Shape,
             "float32",
-            initializers.glorotUniform({}),
+            tf.initializers.glorotUniform({}),
             undefined,
             true
         )
@@ -47,7 +45,7 @@ export class Time2Vec extends Layer {
             "wa",
             [1, this.k],
             "float32",
-            initializers.glorotUniform({}),
+            tf.initializers.glorotUniform({}),
             undefined,
             true
         )
@@ -56,7 +54,7 @@ export class Time2Vec extends Layer {
             "ba",
             [1, this.k],
             "float32",
-            initializers.glorotUniform({}),
+            tf.initializers.glorotUniform({}),
             undefined,
             true
         )
@@ -64,25 +62,25 @@ export class Time2Vec extends Layer {
         super.build(inputShape)
     }
 
-    apply(inputs: Tensor | Tensor[] , kwargs: Kwargs): Tensor | Tensor[] { 
-        const bias: Tensor = scalarAdd(this.bb.read(), mul(this.wb.read(), inputs as Tensor))
+    apply(inputs: tf.Tensor | tf.Tensor[] | tf.SymbolicTensor | tf.SymbolicTensor[]): tf.Tensor | tf.Tensor[] | tf.SymbolicTensor | tf.SymbolicTensor[] { 
+        const bias: tf.Tensor = tf.add(this.bb.read(), tf.mul(this.wb.read(), inputs as tf.Tensor))
 
-        let posFunction: typeof sin | typeof cos;
+        let posFunction: typeof tf.sin | typeof tf.cos;
         if ( this.p_activation === 'sin' ) {
-            posFunction = sin
+            posFunction = tf.sin
         } else if ( this.p_activation === 'cos' ){
-            posFunction = cos
+            posFunction = tf.cos
         } else {
             throw new TypeError('Neither sine or cosine periodic activation be selected.')
         }
 
-        const wgts: Tensor = posFunction(scalarAdd(this.ba.read(), dot(this.wa.read(), inputs as Tensor)) as Tensor)
+        const wgts: tf.Tensor = posFunction(tf.add(this.ba.read(), tf.dot(this.wa.read(), inputs as tf.Tensor)) as tf.Tensor)
 
-        const concatLayer = concatenate({axis: -1});
-        return concatLayer.apply([bias, wgts]) as Tensor;
+        const concatLayer = tf.layers.concatenate({axis: -1});
+        return concatLayer.apply([bias, wgts]) as tf.Tensor;
     }
 
-    compute_output_shape(input_shape: Shape){
+    compute_output_shape(input_shape: tf.Shape){
         return (input_shape[0], input_shape[1], this.k + 1)
     }
 }

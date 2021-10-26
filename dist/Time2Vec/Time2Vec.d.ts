@@ -1,20 +1,15 @@
-import { LayerVariable, Shape } from "@tensorflow/tfjs-layers";
-import { Tensor } from "@tensorflow/tfjs-core";
-import { Layer } from "@tensorflow/tfjs-layers/dist/exports_layers";
+import * as tf from "@tensorflow/tfjs";
 declare type activationType = 'sin' | "cos";
-declare type Kwargs = {
-    [key: string]: any;
-};
-export declare class Time2Vec extends Layer {
+export declare class Time2Vec extends tf.layers.Layer {
     k: number;
     p_activation: activationType;
-    wb: LayerVariable;
-    bb: LayerVariable;
-    wa: LayerVariable;
-    ba: LayerVariable;
+    wb: tf.LayerVariable;
+    bb: tf.LayerVariable;
+    wa: tf.LayerVariable;
+    ba: tf.LayerVariable;
     constructor(kernel_size: number, periodic_activation?: activationType);
-    build(inputShape: Shape): void;
-    apply(inputs: Tensor | Tensor[], kwargs: Kwargs): Tensor | Tensor[];
-    compute_output_shape(input_shape: Shape): number;
+    build(inputShape: tf.Shape): void;
+    apply(inputs: tf.Tensor | tf.Tensor[] | tf.SymbolicTensor | tf.SymbolicTensor[]): tf.Tensor | tf.Tensor[] | tf.SymbolicTensor | tf.SymbolicTensor[];
+    compute_output_shape(input_shape: tf.Shape): number;
 }
 export {};

@@ -1,6 +1,4 @@
-import { initializers } from '@tensorflow/tfjs-layers';
-import { add, mul, dot, sin, cos } from '@tensorflow/tfjs-core';
-import { concatenate, Layer } from '@tensorflow/tfjs-layers/dist/exports_layers';
+import * as tf from '@tensorflow/tfjs';
 
 /*! *****************************************************************************
 Copyright (c) Microsoft Corporation.
@@ -47,33 +45,33 @@ var Time2Vec = /** @class */ (function (_super) {
     }
     Time2Vec.prototype.build = function (inputShape) {
         this.built = true;
-        this.wb = this.addWeight("wb", [1, 1], "float32", initializers.glorotUniform({}), undefined, true);
-        this.bb = this.addWeight("bb", [1, 1], "float32", initializers.glorotUniform({}), undefined, true);
-        this.wa = this.addWeight("wa", [1, this.k], "float32", initializers.glorotUniform({}), undefined, true);
-        this.ba = this.addWeight("ba", [1, this.k], "float32", initializers.glorotUniform({}), undefined, true);
+        this.wb = this.addWeight("wb", [1, 1], "float32", tf.initializers.glorotUniform({}), undefined, true);
+        this.bb = this.addWeight("bb", [1, 1], "float32", tf.initializers.glorotUniform({}), undefined, true);
+        this.wa = this.addWeight("wa", [1, this.k], "float32", tf.initializers.glorotUniform({}), undefined, true);
+        this.ba = this.addWeight("ba", [1, this.k], "float32", tf.initializers.glorotUniform({}), undefined, true);
         _super.prototype.build.call(this, inputShape);
     };
-    Time2Vec.prototype.apply = function (inputs, kwargs) {
-        var bias = add(this.bb.read(), mul(this.wb.read(), inputs));
+    Time2Vec.prototype.apply = function (inputs) {
+        var bias = tf.add(this.bb.read(), tf.mul(this.wb.read(), inputs));
         var posFunction;
         if (this.p_activation === 'sin') {
-            posFunction = sin;
+            posFunction = tf.sin;
         }
         else if (this.p_activation === 'cos') {
-            posFunction = cos;
+            posFunction = tf.cos;
         }
         else {
             throw new TypeError('Neither sine or cosine periodic activation be selected.');
         }
-        var wgts = posFunction(add(this.ba.read(), dot(this.wa.read(), inputs)));
-        var concatLayer = concatenate({ axis: -1 });
+        var wgts = posFunction(tf.add(this.ba.read(), tf.dot(this.wa.read(), inputs)));
+        var concatLayer = tf.layers.concatenate({ axis: -1 });
         return concatLayer.apply([bias, wgts]);
     };
     Time2Vec.prototype.compute_output_shape = function (input_shape) {
         return (input_shape[0], input_shape[1], this.k + 1);
     };
     return Time2Vec;
-}(Layer));
+}(tf.layers.Layer));
 
 var index = /*#__PURE__*/Object.freeze({
     __proto__: null,
