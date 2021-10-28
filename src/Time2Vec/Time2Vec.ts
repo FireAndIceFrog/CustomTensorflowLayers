@@ -25,7 +25,7 @@ export class Time2Vec extends tf.layers.Layer {
         this.built = true;
         this.wb = this.addWeight(
             "wb",
-            [1,1] as tf.Shape,
+            [inputShape[0],1] as tf.Shape,
             "float32",
             tf.initializers.glorotUniform({}),
             undefined,
@@ -34,7 +34,7 @@ export class Time2Vec extends tf.layers.Layer {
         
         this.bb = this.addWeight(
             "bb",
-            [1,1] as tf.Shape,
+            [inputShape[0],1] as tf.Shape,
             "float32",
             tf.initializers.glorotUniform({}),
             undefined,
@@ -43,7 +43,7 @@ export class Time2Vec extends tf.layers.Layer {
         
         this.wa = this.addWeight(
             "wa",
-            [1, this.k],
+            [inputShape[1], this.k],
             "float32",
             tf.initializers.glorotUniform({}),
             undefined,
@@ -52,7 +52,7 @@ export class Time2Vec extends tf.layers.Layer {
         
         this.ba = this.addWeight(
             "ba",
-            [1, this.k],
+            [inputShape[0], this.k],
             "float32",
             tf.initializers.glorotUniform({}),
             undefined,
@@ -62,8 +62,11 @@ export class Time2Vec extends tf.layers.Layer {
         super.build(inputShape)
     }
 
-    apply(inputs: tf.Tensor | tf.Tensor[] | tf.SymbolicTensor | tf.SymbolicTensor[]): tf.Tensor | tf.Tensor[] | tf.SymbolicTensor | tf.SymbolicTensor[] { 
-        const bias: tf.Tensor = tf.add(this.bb.read(), tf.mul(this.wb.read(), inputs as tf.Tensor))
+    call(inputs: tf.Tensor | tf.Tensor[]): tf.Tensor | tf.Tensor[]{ 
+        if(Array.isArray(inputs)){
+            inputs = inputs[0]
+        }
+        const bias: tf.Tensor = this.bb.read().add(this.wb.read().mul(inputs as tf.Tensor))
 
         let posFunction: typeof tf.sin | typeof tf.cos;
         if ( this.p_activation === 'sin' ) {
@@ -74,13 +77,13 @@ export class Time2Vec extends tf.layers.Layer {
             throw new TypeError('Neither sine or cosine periodic activation be selected.')
         }
 
-        const wgts: tf.Tensor = posFunction(tf.add(this.ba.read(), tf.dot(this.wa.read(), inputs as tf.Tensor)) as tf.Tensor)
+        const wgts: tf.Tensor = posFunction(this.ba.read().add(inputs.dot(this.wa.read())) as tf.Tensor)
 
-        const concatLayer = tf.layers.concatenate({axis: -1});
-        return concatLayer.apply([bias, wgts]) as tf.Tensor;
+        const concatLayer = bias.concat(wgts, -1)
+        return concatLayer
     }
 
     compute_output_shape(input_shape: tf.Shape){
-        return (input_shape[0], input_shape[1], this.k + 1)
+        return (input_shape[0], input_shape[1]*2)
     }
 }

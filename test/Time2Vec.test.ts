@@ -5,30 +5,41 @@ import { Time2Vec } from "../dist/index.es.js";
 const days = 365;
 const kernelSize = 5;
 
-function createTestData(): [tf.Tensor1D, tf.Tensor] {
+function createTestData(): [tf.Tensor2D, tf.Tensor] {
     const data = []
     const classes = []
 
-    for(let i = 0; i < days; ++i) {
-        data.push(i)
-        classes.push(i%7===0 ? 1 : 2)
+    for(let i = 0; i < days-kernelSize; ++i) {
+        const kernelData = []
+        for(let j = 0; j < kernelSize; ++j) {
+            kernelData.push(j+i)
+        }
+        kernelData.reverse()
+        data.push(kernelData)
+        classes.push(i%7===0 ? [1] : [2])
     }
 
-    const inputs = tf.tensor1d(data)
-    const outputs = tf.oneHot(tf.tensor1d(classes, 'int32'), 2)
+    const inputs = tf.tensor2d(data)
+    const outputs = tf.oneHot(tf.tensor2d(classes, [days-kernelSize,1], "int32"), 2)
 
     return [inputs, outputs]
 }
 
 function createModel(useTime2vec: boolean) {
-    const dataInput = tf.input({shape: [days]});
-    let layers: tf.SymbolicTensor = tf.layers.dense({
-        units: 50,
-    }).apply(dataInput) as tf.SymbolicTensor
-    
+    const dataInput = tf.input({batchShape: [32, kernelSize]});
+    let layers: tf.SymbolicTensor
+
     if(useTime2vec){
-        layers = new Time2Vec.Time2Vec(kernelSize, "sin").apply(layers) as tf.SymbolicTensor
+        layers = new Time2Vec.Time2Vec(kernelSize, "sin").apply(dataInput) as tf.SymbolicTensor
     }
+    
+    layers = tf.layers.dense({
+        units: 50,
+    }).apply(layers) as tf.SymbolicTensor
+
+    layers = tf.layers.reshape({
+        targetShape: [10, kernelSize]
+    }).apply(layers) as tf.SymbolicTensor
     
     layers = tf.layers.lstm({
         units: 64,
@@ -44,6 +55,10 @@ function createModel(useTime2vec: boolean) {
         units: 50,
     }).apply(layers) as tf.SymbolicTensor
 
+    layers = tf.layers.reshape({
+        targetShape: [1,500]
+    }).apply(layers) as tf.SymbolicTensor
+    
     layers = tf.layers.dense({
         units: 2,
         activation: 'softmax'
@@ -65,7 +80,7 @@ it('Can train', async () => {
     const [inputs, outputs] = createTestData();
     const model = createModel(true);
 
-    const train = tf.slice1d(inputs, 0, Math.floor(days/2))
+    const train = tf.slice(inputs, 0, Math.floor(days/2))
     const trainClasses = tf.slice(outputs, 0, Math.floor(days/2))
 
     const history = await model.fit(train, trainClasses, {epochs: 2})

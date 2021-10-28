@@ -33,26 +33,29 @@ function __extends(d, b) {
 
 var Time2Vec = /** @class */ (function (_super) {
     __extends(Time2Vec, _super);
-    function Time2Vec(kernel_size, periodic_activation) {
+    function Time2Vec(output_dim, periodic_activation) {
         if (periodic_activation === void 0) { periodic_activation = 'sin'; }
         var _this = _super.call(this, {
             trainable: true,
             name: 'Time2VecLayer_' + periodic_activation.toUpperCase()
         }) || this;
-        _this.k = kernel_size;
+        _this.output_dim = output_dim;
         _this.p_activation = periodic_activation;
         return _this;
     }
-    Time2Vec.prototype.build = function (inputShape) {
+    Time2Vec.prototype.build = function (input_shape) {
         this.built = true;
-        this.wb = this.addWeight("wb", [1, 1], "float32", tf.initializers.glorotUniform({}), undefined, true);
-        this.bb = this.addWeight("bb", [1, 1], "float32", tf.initializers.glorotUniform({}), undefined, true);
-        this.wa = this.addWeight("wa", [1, this.k], "float32", tf.initializers.glorotUniform({}), undefined, true);
-        this.ba = this.addWeight("ba", [1, this.k], "float32", tf.initializers.glorotUniform({}), undefined, true);
-        _super.prototype.build.call(this, inputShape);
+        this.LatentVectorA = this.addWeight("wb", [input_shape[input_shape.length - 1], this.output_dim], "float32", tf.initializers.glorotUniform({}), undefined, true);
+        this.LatentVectorB = this.addWeight("bb", [input_shape[1], this.output_dim], "float32", tf.initializers.glorotUniform({}), undefined, true);
+        this.biasWeightA = this.addWeight("wa", [input_shape[1], 1], "float32", tf.initializers.glorotUniform({}), undefined, true);
+        this.biasWeightB = this.addWeight("ba", [input_shape[1], 1], "float32", tf.initializers.glorotUniform({}), undefined, true);
+        _super.prototype.build.call(this, input_shape);
     };
-    Time2Vec.prototype.apply = function (inputs) {
-        var bias = tf.add(this.bb.read(), tf.mul(this.wb.read(), inputs));
+    Time2Vec.prototype.call = function (inputs) {
+        if (Array.isArray(inputs)) {
+            inputs = inputs[0];
+        }
+        var bias = this.biasWeightB.read().add(this.biasWeightA.read().mul(inputs));
         var posFunction;
         if (this.p_activation === 'sin') {
             posFunction = tf.sin;
@@ -63,12 +66,9 @@ var Time2Vec = /** @class */ (function (_super) {
         else {
             throw new TypeError('Neither sine or cosine periodic activation be selected.');
         }
-        var wgts = posFunction(tf.add(this.ba.read(), tf.dot(this.wa.read(), inputs)));
-        var concatLayer = tf.layers.concatenate({ axis: -1 });
-        return concatLayer.apply([bias, wgts]);
-    };
-    Time2Vec.prototype.compute_output_shape = function (input_shape) {
-        return (input_shape[0], input_shape[1], this.k + 1);
+        var wgts = posFunction(this.LatentVectorB.read().add(inputs.dot(this.LatentVectorA.read())));
+        var concatLayer = bias.concat(wgts, -1);
+        return concatLayer;
     };
     return Time2Vec;
 }(tf.layers.Layer));
