@@ -12,7 +12,7 @@
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -cw",
-    "test": "mocha --loader=ts-node/esm 'test/**/*.{ts,js}'"
+    "test": "mocha --loader=ts-node/esm 'test/**/*.{ts,js}' --timeout 500000"
   },
   "keywords": [],
   "author": "Mathew Lawrence",

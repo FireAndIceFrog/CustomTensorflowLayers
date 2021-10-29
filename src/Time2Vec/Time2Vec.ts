@@ -66,7 +66,17 @@ export class Time2Vec extends tf.layers.Layer {
         if(Array.isArray(inputs)){
             inputs = inputs[0]
         }
-        const bias: tf.Tensor = this.bb.read().add(this.wb.read().mul(inputs as tf.Tensor))
+        const initialInputShape = inputs.shape[0]
+        const outputShape = this.outputShape[0]
+
+        const bb = this.bb.read().slice([0], [inputs.shape[0]])
+        const wb = this.wb.read().slice([0], [inputs.shape[0]])
+        const ba = this.ba.read().slice([0], [inputs.shape[0]])
+        const wa = this.wa.read().slice([0], [inputs.shape[1]])
+
+        
+
+        const bias: tf.Tensor = bb.add(wb.mul(inputs as tf.Tensor))
 
         let posFunction: typeof tf.sin | typeof tf.cos;
         if ( this.p_activation === 'sin' ) {
@@ -77,13 +87,16 @@ export class Time2Vec extends tf.layers.Layer {
             throw new TypeError('Neither sine or cosine periodic activation be selected.')
         }
 
-        const wgts: tf.Tensor = posFunction(this.ba.read().add(inputs.dot(this.wa.read())) as tf.Tensor)
+        const wgts: tf.Tensor = posFunction(ba.add(inputs.dot(wa)) as tf.Tensor)
 
         const concatLayer = bias.concat(wgts, -1)
+
+        this.output
+
         return concatLayer
     }
 
-    compute_output_shape(input_shape: tf.Shape){
-        return (input_shape[0], input_shape[1]*2)
+    computeOutputShape(input_shape: tf.Shape ): tf.Shape {
+        return [input_shape[0], input_shape[1]*2] 
     }
 }

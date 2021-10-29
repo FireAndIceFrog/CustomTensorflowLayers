@@ -31,12 +31,15 @@ function createModel(useTime2vec: boolean) {
 
     if(useTime2vec){
         layers = new Time2Vec.Time2Vec(kernelSize, "sin").apply(dataInput) as tf.SymbolicTensor
+        layers = tf.layers.dense({
+            units: 50,
+        }).apply(layers) as tf.SymbolicTensor
+    } else {
+        layers = tf.layers.dense({
+            units: 50,
+        }).apply(dataInput) as tf.SymbolicTensor
     }
     
-    layers = tf.layers.dense({
-        units: 50,
-    }).apply(layers) as tf.SymbolicTensor
-
     layers = tf.layers.reshape({
         targetShape: [10, kernelSize]
     }).apply(layers) as tf.SymbolicTensor
@@ -51,12 +54,12 @@ function createModel(useTime2vec: boolean) {
         returnSequences: true
     }).apply(layers) as tf.SymbolicTensor
 
-    layers = tf.layers.dense({
-        units: 50,
-    }).apply(layers) as tf.SymbolicTensor
+    // layers = tf.layers.dense({
+    //     units: 50,
+    // }).apply(layers) as tf.SymbolicTensor
 
     layers = tf.layers.reshape({
-        targetShape: [1,500]
+        targetShape: [1,640]
     }).apply(layers) as tf.SymbolicTensor
     
     layers = tf.layers.dense({
@@ -76,14 +79,39 @@ function createModel(useTime2vec: boolean) {
     return model
 }
 
+const [inputs, outputs] = createTestData();
+const trainTestSplit = 0.75
+
+const train = tf.slice(inputs, 0, Math.floor(days*trainTestSplit))
+const trainClasses = tf.slice(outputs, 0, Math.floor(days*trainTestSplit))
+
+const test = tf.slice(inputs, [Math.floor(days*trainTestSplit)],[-1])
+const testClasses = tf.slice(outputs, [Math.floor(days*trainTestSplit)],[-1])
+
+const Time2VecModel = createModel(true);
+const time2VecPromise = Time2VecModel.fit(train, trainClasses, {epochs: 40, batchSize: 32})
+
+const normalModel = createModel(false);
+const normalModelPromise = normalModel.fit(train, trainClasses, {epochs: 40, batchSize: 32})
+
 it('Can train', async () => {
-    const [inputs, outputs] = createTestData();
-    const model = createModel(true);
-
-    const train = tf.slice(inputs, 0, Math.floor(days/2))
-    const trainClasses = tf.slice(outputs, 0, Math.floor(days/2))
-
-    const history = await model.fit(train, trainClasses, {epochs: 2})
-    assert(history.history.loss.length===2);
-
+    const history = await time2VecPromise
+    assert.equal(history.history.loss.length, 2);
 });
+
+it('Compares better than normal Model on test data', async()=>{
+    const history = await time2VecPromise
+    const normalHistory = await normalModelPromise
+
+    const time2VecTest = Time2VecModel.predict(test) as tf.Tensor
+    const normalTest = normalModel.predict(test) as tf.Tensor
+    
+    const time2VecLoss = tf.losses.softmaxCrossEntropy(testClasses, time2VecTest)
+    const normalLoss = tf.losses.softmaxCrossEntropy(testClasses, normalTest)
+
+    const normalMean = normalLoss.mean().arraySync()
+
+    const time2vecMean = time2VecLoss.mean().arraySync()
+
+    assert.ok(normalMean > time2vecMean)
+})
