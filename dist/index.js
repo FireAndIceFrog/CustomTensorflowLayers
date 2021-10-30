@@ -107,9 +107,37 @@ var Time2Vec = /** @class */ (function (_super) {
     return Time2Vec;
 }(tf__namespace.layers.Layer));
 
-var index = /*#__PURE__*/Object.freeze({
+var index$1 = /*#__PURE__*/Object.freeze({
     __proto__: null,
     Time2Vec: Time2Vec
 });
 
-exports.Time2Vec = index;
+function create_padding_mask(seq) {
+    var newSeq = tf__namespace.cast(tf__namespace.notEqual(seq, 0), 'float32');
+    //should be [batch_size, 1, 1, seq_len]
+    newSeq.expandDims(1).expandDims(1);
+    return newSeq;
+}
+function create_look_ahead_mask(seq_len) {
+    var mask = tf__namespace.ones([1], 'float32');
+    mask = mask.sub(tf__namespace.linalg.bandPart(tf__namespace.ones([seq_len, seq_len]), -1, 0));
+    return mask;
+}
+
+var Transformer = /** @class */ (function (_super) {
+    __extends(Transformer, _super);
+    function Transformer() {
+        return _super !== null && _super.apply(this, arguments) || this;
+    }
+    return Transformer;
+}(tf__namespace.layers.Layer));
+
+var index = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    create_look_ahead_mask: create_look_ahead_mask,
+    create_padding_mask: create_padding_mask,
+    Transformer: Transformer
+});
+
+exports.Time2Vec = index$1;
+exports.Transformer = index;
