@@ -55,8 +55,6 @@ var Time2Vec = /** @class */ (function (_super) {
         if (Array.isArray(inputs)) {
             inputs = inputs[0];
         }
-        inputs.shape[0];
-        this.outputShape[0];
         var bb = this.bb.read().slice([0], [inputs.shape[0]]);
         var wb = this.wb.read().slice([0], [inputs.shape[0]]);
         var ba = this.ba.read().slice([0], [inputs.shape[0]]);
@@ -110,7 +108,7 @@ var Transformer = /** @class */ (function (_super) {
 
 function scaled_attention(query, key, values, mask) {
     var matmul_qk = tf.matMul(query, key, false, true);
-    var dk = tf.cast(key.shape[-1], "float32");
+    var dk = tf.cast(key.shape[key.shape.length - 1], "float32");
     // (Q * K) / sqrt(dk) is the scaled dot product of query and key
     var scaled_attention_logits = matmul_qk.div(tf.sqrt(dk));
     if (mask) {
@@ -120,20 +118,51 @@ function scaled_attention(query, key, values, mask) {
     var output = tf.matMul(attention_weights, values);
     return [output, attention_weights];
 }
-var ScaledAttentionLayer = /** @class */ (function (_super) {
-    __extends(ScaledAttentionLayer, _super);
-    function ScaledAttentionLayer() {
-        return _super.call(this, {}) || this;
+var MultiHeadAttention = /** @class */ (function (_super) {
+    __extends(MultiHeadAttention, _super);
+    function MultiHeadAttention(_a) {
+        var d_model = _a.d_model, num_heads = _a.num_heads;
+        var _this = _super.call(this, {
+            trainable: true,
+            name: 'MultiHeadAttention'
+        }) || this;
+        _this.num_heads = num_heads;
+        _this.d_model = d_model;
+        if (d_model % _this.num_heads !== 0) {
+            throw new Error("D_model must be divisible by num_heads");
+        }
+        _this.depth = Math.floor(d_model / _this.num_heads);
+        _this.wq = tf.layers.dense({ units: d_model });
+        _this.wk = tf.layers.dense({ units: d_model });
+        _this.wv = tf.layers.dense({ units: d_model });
+        _this.dense = tf.layers.dense({ units: d_model });
+        return _this;
     }
-    ScaledAttentionLayer.prototype.computeOutputShape = function (inputShape) {
-        return [inputShape[0], inputShape[2]];
+    MultiHeadAttention.prototype.scaled_attention = function (q, k, v, mask) {
+        return scaled_attention(q, k, v, mask);
     };
-    ScaledAttentionLayer.prototype.call = function (inputs) {
-        var query = inputs[0], key = inputs[1], values = inputs[2], mask = inputs[3];
-        var output = scaled_attention(query, key, values, mask)[0];
-        return output;
+    MultiHeadAttention.prototype.split_heads = function (x, batch_size) {
+        x = tf.reshape(x, [batch_size, -1, this.num_heads, this.depth]);
+        return tf.transpose(x, [0, 2, 1, 3]);
     };
-    return ScaledAttentionLayer;
+    MultiHeadAttention.prototype.call = function (_a) {
+        var value = _a[0], key = _a[1], query = _a[2], mask = _a[3];
+        var batch_size = query.shape[0];
+        var predQuery = this.wq.apply(query);
+        var predKey = this.wk.apply(key);
+        var predValues = this.wv.apply(value);
+        predQuery = this.split_heads(predQuery, batch_size); // (batch_size, num_heads, seq_len_q, depth)
+        predKey = this.split_heads(predKey, batch_size); // (batch_size, num_heads, seq_len_k, depth)
+        predValues = this.split_heads(predValues, batch_size); // (batch_size, num_heads, seq_len_v, depth)
+        // scaled_attention.shape == (batch_size, num_heads, seq_len_q, depth)
+        // attention_weights.shape == (batch_size, num_heads, seq_len_q, seq_len_k)
+        var _b = this.scaled_attention(predQuery, predKey, predValues, mask), scaled_attention = _b[0], attention_weights = _b[1];
+        var transposed_scaled_attention = tf.transpose(scaled_attention, [0, 2, 1, 3]); // (batch_size, seq_len_q, num_heads, depth)
+        var concat_attention = tf.reshape(transposed_scaled_attention, [batch_size, -1, this.d_model]); // (batch_size, seq_len_q, d_model)
+        var output = this.dense.apply(concat_attention); // (batch_size, seq_len_q, d_model)
+        return [output, attention_weights];
+    };
+    return MultiHeadAttention;
 }(tf.layers.Layer));
 
 var index = /*#__PURE__*/Object.freeze({
@@ -141,7 +170,7 @@ var index = /*#__PURE__*/Object.freeze({
     create_look_ahead_mask: create_look_ahead_mask,
     create_padding_mask: create_padding_mask,
     Transformer: Transformer,
-    ScaledAttentionLayer: ScaledAttentionLayer,
+    MultiHeadAttention: MultiHeadAttention,
     scaled_attention: scaled_attention
 });
 
