@@ -91,8 +91,8 @@ var index$1 = /*#__PURE__*/Object.freeze({
 function create_padding_mask(seq) {
     var newSeq = tf.cast(tf.notEqual(seq, 0), 'float32');
     //should be [batch_size, 1, 1, seq_len]
-    newSeq.expandDims(1).expandDims(1);
-    return newSeq;
+    var addedDims = newSeq.expandDims(1).expandDims(1);
+    return addedDims;
 }
 function create_look_ahead_mask(seq_len) {
     var mask = tf.ones([1], 'float32');
@@ -108,11 +108,41 @@ var Transformer = /** @class */ (function (_super) {
     return Transformer;
 }(tf.layers.Layer));
 
+function scaled_attention(query, key, values, mask) {
+    var matmul_qk = tf.matMul(query, key, false, true);
+    var dk = tf.cast(key.shape[-1], "float32");
+    // (Q * K) / sqrt(dk) is the scaled dot product of query and key
+    var scaled_attention_logits = matmul_qk.div(tf.sqrt(dk));
+    if (mask) {
+        scaled_attention_logits.add(mask.mul(-1e9));
+    }
+    var attention_weights = tf.softmax(scaled_attention_logits, -1);
+    var output = tf.matMul(attention_weights, values);
+    return [output, attention_weights];
+}
+var ScaledAttentionLayer = /** @class */ (function (_super) {
+    __extends(ScaledAttentionLayer, _super);
+    function ScaledAttentionLayer() {
+        return _super.call(this, {}) || this;
+    }
+    ScaledAttentionLayer.prototype.computeOutputShape = function (inputShape) {
+        return [inputShape[0], inputShape[2]];
+    };
+    ScaledAttentionLayer.prototype.call = function (inputs) {
+        var query = inputs[0], key = inputs[1], values = inputs[2], mask = inputs[3];
+        var output = scaled_attention(query, key, values, mask)[0];
+        return output;
+    };
+    return ScaledAttentionLayer;
+}(tf.layers.Layer));
+
 var index = /*#__PURE__*/Object.freeze({
     __proto__: null,
     create_look_ahead_mask: create_look_ahead_mask,
     create_padding_mask: create_padding_mask,
-    Transformer: Transformer
+    Transformer: Transformer,
+    ScaledAttentionLayer: ScaledAttentionLayer,
+    scaled_attention: scaled_attention
 });
 
 export { index$1 as Time2Vec, index as Transformer };

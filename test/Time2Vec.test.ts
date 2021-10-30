@@ -89,10 +89,10 @@ const test = tf.slice(inputs, [Math.floor(days*trainTestSplit)],[-1])
 const testClasses = tf.slice(outputs, [Math.floor(days*trainTestSplit)],[-1])
 
 const Time2VecModel = createModel(true);
-const time2VecPromise = Time2VecModel.fit(train, trainClasses, {epochs: 40, batchSize: 32})
+const time2VecPromise = Time2VecModel.fit(train, trainClasses, {epochs: 1, batchSize: 32})
 
 const normalModel = createModel(false);
-const normalModelPromise = normalModel.fit(train, trainClasses, {epochs: 40, batchSize: 32})
+const normalModelPromise = normalModel.fit(train, trainClasses, {epochs: 1, batchSize: 32})
 
 it('Can train', async () => {
     const history = await time2VecPromise

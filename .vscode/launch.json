@@ -11,7 +11,8 @@
             "runtimeExecutable": "npm",
             "runtimeArgs": [
                 "run-script",
-                "test"
+                "test", 
+                "--grep mask"
             ],
             "port": 9229,
             "skipFiles": [
