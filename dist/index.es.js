@@ -165,13 +165,73 @@ var MultiHeadAttention = /** @class */ (function (_super) {
     return MultiHeadAttention;
 }(tf.layers.Layer));
 
+function pointWiseFeedForwardNetwork(d_model, dff) {
+    return tf.sequential({
+        layers: [
+            tf.layers.dense({
+                units: dff,
+                activation: 'relu',
+                kernelInitializer: 'glorotNormal',
+                name: 'first-dense',
+                inputShape: [d_model]
+            }),
+            tf.layers.dense({
+                units: d_model,
+                kernelInitializer: 'glorotNormal',
+                name: 'second-dense'
+            })
+        ]
+    });
+}
+var Encoder = /** @class */ (function (_super) {
+    __extends(Encoder, _super);
+    function Encoder(d_model, num_heads, dff, rate) {
+        if (rate === void 0) { rate = 0.1; }
+        var _this = _super.call(this, {
+            name: 'encoder'
+        }) || this;
+        _this.multiheadAttention = new MultiHeadAttention({ d_model: d_model, num_heads: num_heads });
+        _this.ffn = pointWiseFeedForwardNetwork(d_model, dff);
+        _this.layernorm1 = tf.layers.layerNormalization({
+            epsilon: 1e-6,
+            name: 'layernorm1'
+        });
+        _this.layernorm2 = tf.layers.layerNormalization({
+            epsilon: 1e-6,
+            name: 'layernorm2'
+        });
+        _this.dropout1 = tf.layers.dropout({
+            rate: rate,
+            name: 'dropout1'
+        });
+        _this.dropout2 = tf.layers.dropout({
+            rate: rate,
+        });
+        return _this;
+    }
+    Encoder.prototype.call = function (inputs, _a) {
+        var training = _a.training;
+        var x = inputs[0], mask = inputs[1];
+        var attentionOutput = this.multiheadAttention.call([x, x, x, mask])[0]; //(batch_size, input_seq_len, d_model)
+        attentionOutput = this.dropout1.apply(attentionOutput, { training: training });
+        var out1 = this.layernorm1.apply(x.add(attentionOutput));
+        var ffnOutput = this.ffn.apply(out1); //(batch_size, input_seq_len, d_model)
+        ffnOutput = this.dropout2.apply(ffnOutput, { training: training });
+        var out2 = this.layernorm2.apply(out1.add(ffnOutput));
+        return out2;
+    };
+    return Encoder;
+}(tf.layers.Layer));
+
 var index = /*#__PURE__*/Object.freeze({
     __proto__: null,
     create_look_ahead_mask: create_look_ahead_mask,
     create_padding_mask: create_padding_mask,
     Transformer: Transformer,
     MultiHeadAttention: MultiHeadAttention,
-    scaled_attention: scaled_attention
+    scaled_attention: scaled_attention,
+    Encoder: Encoder,
+    pointWiseFeedForwardNetwork: pointWiseFeedForwardNetwork
 });
 
 export { index$1 as Time2Vec, index as Transformer };
