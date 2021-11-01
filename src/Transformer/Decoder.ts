@@ -2,7 +2,7 @@ import * as tf from "@tensorflow/tfjs"
 import { MultiHeadAttention } from "./Attention";
 import  { pointWiseFeedForwardNetwork } from "./Encoder"
 
-class DecoderLayer extends tf.layers.Layer {
+export class DecoderLayer extends tf.layers.Layer {
     mha1: MultiHeadAttention;
     mha2: MultiHeadAttention;
 

@@ -223,6 +223,40 @@ var Encoder = /** @class */ (function (_super) {
     return Encoder;
 }(tf.layers.Layer));
 
+var DecoderLayer = /** @class */ (function (_super) {
+    __extends(DecoderLayer, _super);
+    function DecoderLayer(d_model, num_heads, dff, rate) {
+        if (rate === void 0) { rate = 0.1; }
+        var _this = _super.call(this, {
+            name: 'DecoderLayer',
+        }) || this;
+        _this.mha1 = new MultiHeadAttention({ d_model: d_model, num_heads: num_heads });
+        _this.mha2 = new MultiHeadAttention({ d_model: d_model, num_heads: num_heads });
+        _this.ffn = pointWiseFeedForwardNetwork(d_model, dff);
+        _this.layernorm1 = tf.layers.layerNormalization({ epsilon: 1e-6 });
+        _this.layernorm2 = tf.layers.layerNormalization({ epsilon: 1e-6 });
+        _this.layernorm3 = tf.layers.layerNormalization({ epsilon: 1e-6 });
+        _this.dropout1 = tf.layers.dropout({ rate: rate });
+        _this.dropout2 = tf.layers.dropout({ rate: rate });
+        _this.dropout3 = tf.layers.dropout({ rate: rate });
+        return _this;
+    }
+    DecoderLayer.prototype.call = function (inputs, kwargs) {
+        var x = inputs[0], encoder_outputs = inputs[1], look_ahead_mask = inputs[2], padding_mask = inputs[3];
+        var _a = this.mha1.call([x, x, x, look_ahead_mask]), attn1 = _a[0], attn_weights_block1 = _a[1];
+        attn1 = this.dropout1.apply(attn1, kwargs);
+        var out1 = this.layernorm1.apply(attn1.add(x), kwargs);
+        var _b = this.mha2.call([encoder_outputs, encoder_outputs, out1, padding_mask]), attn2 = _b[0], attn_weights_block2 = _b[1];
+        attn2 = this.dropout2.apply(attn2, kwargs);
+        var out2 = this.layernorm2.apply(attn2.add(out1), kwargs);
+        var ffn_output = this.ffn.apply(out2);
+        ffn_output = this.dropout3.apply(ffn_output, kwargs);
+        var out3 = this.layernorm3.apply(ffn_output.add(out2), kwargs);
+        return [out3, attn_weights_block1, attn_weights_block2];
+    };
+    return DecoderLayer;
+}(tf.layers.Layer));
+
 var index = /*#__PURE__*/Object.freeze({
     __proto__: null,
     create_look_ahead_mask: create_look_ahead_mask,
@@ -231,7 +265,8 @@ var index = /*#__PURE__*/Object.freeze({
     MultiHeadAttention: MultiHeadAttention,
     scaled_attention: scaled_attention,
     Encoder: Encoder,
-    pointWiseFeedForwardNetwork: pointWiseFeedForwardNetwork
+    pointWiseFeedForwardNetwork: pointWiseFeedForwardNetwork,
+    DecoderLayer: DecoderLayer
 });
 
 export { index$1 as Time2Vec, index as Transformer };
