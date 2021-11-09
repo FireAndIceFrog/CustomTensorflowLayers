@@ -66,32 +66,33 @@ export class Time2Vec extends tf.layers.Layer {
         if(Array.isArray(inputs)){
             inputs = inputs[0]
         }
-        if(inputs.__proto__.constructor.name === 'SymbolicTensor'){
+        try{
+
+            const bb = this.bb.read().slice([0], [inputs.shape[0]])
+            const wb = this.wb.read().slice([0], [inputs.shape[0]])
+            const ba = this.ba.read().slice([0], [inputs.shape[0]])
+            const wa = this.wa.read().slice([0], [inputs.shape[1]])
+            const bias: tf.Tensor = bb.add(wb.mul(inputs as tf.Tensor))
+            let posFunction: typeof tf.sin | typeof tf.cos;
+            
+            if ( this.p_activation === 'sin' ) {
+                posFunction = tf.sin
+            } else if ( this.p_activation === 'cos' ){
+                posFunction = tf.cos
+            } else {
+                throw new TypeError('Neither sine or cosine periodic activation be selected.')
+            }
+
+            const wgts: tf.Tensor = posFunction(ba.add(inputs.dot(wa)) as tf.Tensor)
+
+            const concatLayer = bias.concat(wgts, -1)
+
+            this.output
+
+            return concatLayer
+        } catch(e){
             return inputs
         }
-
-        const bb = this.bb.read().slice([0], [inputs.shape[0]])
-        const wb = this.wb.read().slice([0], [inputs.shape[0]])
-        const ba = this.ba.read().slice([0], [inputs.shape[0]])
-        const wa = this.wa.read().slice([0], [inputs.shape[1]])
-        const bias: tf.Tensor = bb.add(wb.mul(inputs as tf.Tensor))
-        let posFunction: typeof tf.sin | typeof tf.cos;
-        
-        if ( this.p_activation === 'sin' ) {
-            posFunction = tf.sin
-        } else if ( this.p_activation === 'cos' ){
-            posFunction = tf.cos
-        } else {
-            throw new TypeError('Neither sine or cosine periodic activation be selected.')
-        }
-
-        const wgts: tf.Tensor = posFunction(ba.add(inputs.dot(wa)) as tf.Tensor)
-
-        const concatLayer = bias.concat(wgts, -1)
-
-        this.output
-
-        return concatLayer
     }
 
     computeOutputShape(input_shape: tf.Shape ): tf.Shape {

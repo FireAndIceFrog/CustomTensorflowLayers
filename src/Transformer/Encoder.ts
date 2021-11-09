@@ -54,21 +54,21 @@ export class Encoder extends tf.layers.Layer {
     }
 
     call(inputs: [tf.Tensor, tf.Tensor | undefined], {training}: {training: boolean}) {
-        //@ts-ignore
-        if(inputs.__proto__.constructor.name === 'SymbolicTensor'){
+        try{
+            let [x, mask] = inputs;
+
+            let [attentionOutput] = this.multiheadAttention.call([x, x, x, mask]); //(batch_size, input_seq_len, d_model)
+            attentionOutput = this.dropout1.apply(attentionOutput, {training}) as tf.Tensor;
+            const out1 = this.layernorm1.apply(x.add(attentionOutput)) as tf.Tensor;
+
+            let ffnOutput = this.ffn.apply(out1) as tf.Tensor; //(batch_size, input_seq_len, d_model)
+            ffnOutput = this.dropout2.apply(ffnOutput, {training}) as tf.Tensor;
+            const out2 = this.layernorm2.apply(out1.add(ffnOutput)) as tf.Tensor;
+
+            return out2;
+        } catch(e) {
             return inputs
         }
-        let [x, mask] = inputs;
-
-        let [attentionOutput] = this.multiheadAttention.call([x, x, x, mask]); //(batch_size, input_seq_len, d_model)
-        attentionOutput = this.dropout1.apply(attentionOutput, {training}) as tf.Tensor;
-        const out1 = this.layernorm1.apply(x.add(attentionOutput)) as tf.Tensor;
-
-        let ffnOutput = this.ffn.apply(out1) as tf.Tensor; //(batch_size, input_seq_len, d_model)
-        ffnOutput = this.dropout2.apply(ffnOutput, {training}) as tf.Tensor;
-        const out2 = this.layernorm2.apply(out1.add(ffnOutput)) as tf.Tensor;
-
-        return out2;
     }
 
 }

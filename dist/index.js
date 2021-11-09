@@ -45,28 +45,30 @@ class Time2Vec extends tf__namespace.layers.Layer {
         if (Array.isArray(inputs)) {
             inputs = inputs[0];
         }
-        if (inputs instanceof tf__namespace.SymbolicTensor) {
+        try {
+            const bb = this.bb.read().slice([0], [inputs.shape[0]]);
+            const wb = this.wb.read().slice([0], [inputs.shape[0]]);
+            const ba = this.ba.read().slice([0], [inputs.shape[0]]);
+            const wa = this.wa.read().slice([0], [inputs.shape[1]]);
+            const bias = bb.add(wb.mul(inputs));
+            let posFunction;
+            if (this.p_activation === 'sin') {
+                posFunction = tf__namespace.sin;
+            }
+            else if (this.p_activation === 'cos') {
+                posFunction = tf__namespace.cos;
+            }
+            else {
+                throw new TypeError('Neither sine or cosine periodic activation be selected.');
+            }
+            const wgts = posFunction(ba.add(inputs.dot(wa)));
+            const concatLayer = bias.concat(wgts, -1);
+            this.output;
+            return concatLayer;
+        }
+        catch (e) {
             return inputs;
         }
-        const bb = this.bb.read().slice([0], [inputs.shape[0]]);
-        const wb = this.wb.read().slice([0], [inputs.shape[0]]);
-        const ba = this.ba.read().slice([0], [inputs.shape[0]]);
-        const wa = this.wa.read().slice([0], [inputs.shape[1]]);
-        const bias = bb.add(wb.mul(inputs));
-        let posFunction;
-        if (this.p_activation === 'sin') {
-            posFunction = tf__namespace.sin;
-        }
-        else if (this.p_activation === 'cos') {
-            posFunction = tf__namespace.cos;
-        }
-        else {
-            throw new TypeError('Neither sine or cosine periodic activation be selected.');
-        }
-        const wgts = posFunction(ba.add(inputs.dot(wa)));
-        const concatLayer = bias.concat(wgts, -1);
-        this.output;
-        return concatLayer;
     }
     computeOutputShape(input_shape) {
         return [input_shape[0], input_shape[1] * 2];
@@ -186,17 +188,19 @@ class Encoder extends tf__namespace.layers.Layer {
         });
     }
     call(inputs, { training }) {
-        if (inputs instanceof tf__namespace.SymbolicTensor) {
+        try {
+            let [x, mask] = inputs;
+            let [attentionOutput] = this.multiheadAttention.call([x, x, x, mask]); //(batch_size, input_seq_len, d_model)
+            attentionOutput = this.dropout1.apply(attentionOutput, { training });
+            const out1 = this.layernorm1.apply(x.add(attentionOutput));
+            let ffnOutput = this.ffn.apply(out1); //(batch_size, input_seq_len, d_model)
+            ffnOutput = this.dropout2.apply(ffnOutput, { training });
+            const out2 = this.layernorm2.apply(out1.add(ffnOutput));
+            return out2;
+        }
+        catch (e) {
             return inputs;
         }
-        let [x, mask] = inputs;
-        let [attentionOutput] = this.multiheadAttention.call([x, x, x, mask]); //(batch_size, input_seq_len, d_model)
-        attentionOutput = this.dropout1.apply(attentionOutput, { training });
-        const out1 = this.layernorm1.apply(x.add(attentionOutput));
-        let ffnOutput = this.ffn.apply(out1); //(batch_size, input_seq_len, d_model)
-        ffnOutput = this.dropout2.apply(ffnOutput, { training });
-        const out2 = this.layernorm2.apply(out1.add(ffnOutput));
-        return out2;
     }
 }
 
@@ -216,20 +220,22 @@ class DecoderLayer extends tf__namespace.layers.Layer {
         this.dropout3 = tf__namespace.layers.dropout({ rate: rate });
     }
     call(inputs, kwargs) {
-        if (inputs instanceof tf__namespace.SymbolicTensor) {
+        try {
+            const [x, encoder_outputs, look_ahead_mask, padding_mask] = inputs;
+            let [attn1, attn_weights_block1] = this.mha1.call([x, x, x, look_ahead_mask]);
+            attn1 = this.dropout1.apply(attn1, kwargs);
+            const out1 = this.layernorm1.apply(attn1.add(x), kwargs);
+            let [attn2, attn_weights_block2] = this.mha2.call([encoder_outputs, encoder_outputs, out1, padding_mask]);
+            attn2 = this.dropout2.apply(attn2, kwargs);
+            const out2 = this.layernorm2.apply(attn2.add(out1), kwargs);
+            let ffn_output = this.ffn.apply(out2);
+            ffn_output = this.dropout3.apply(ffn_output, kwargs);
+            const out3 = this.layernorm3.apply(ffn_output.add(out2), kwargs);
+            return [out3, attn_weights_block1, attn_weights_block2];
+        }
+        catch (e) {
             return inputs;
         }
-        const [x, encoder_outputs, look_ahead_mask, padding_mask] = inputs;
-        let [attn1, attn_weights_block1] = this.mha1.call([x, x, x, look_ahead_mask]);
-        attn1 = this.dropout1.apply(attn1, kwargs);
-        const out1 = this.layernorm1.apply(attn1.add(x), kwargs);
-        let [attn2, attn_weights_block2] = this.mha2.call([encoder_outputs, encoder_outputs, out1, padding_mask]);
-        attn2 = this.dropout2.apply(attn2, kwargs);
-        const out2 = this.layernorm2.apply(attn2.add(out1), kwargs);
-        let ffn_output = this.ffn.apply(out2);
-        ffn_output = this.dropout3.apply(ffn_output, kwargs);
-        const out3 = this.layernorm3.apply(ffn_output.add(out2), kwargs);
-        return [out3, attn_weights_block1, attn_weights_block2];
     }
 }
 
