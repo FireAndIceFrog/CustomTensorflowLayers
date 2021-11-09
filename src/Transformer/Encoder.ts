@@ -54,6 +54,9 @@ export class Encoder extends tf.layers.Layer {
     }
 
     call(inputs: [tf.Tensor, tf.Tensor | undefined], {training}: {training: boolean}) {
+        if(inputs instanceof tf.SymbolicTensor){
+            return inputs
+        }
         let [x, mask] = inputs;
 
         let [attentionOutput] = this.multiheadAttention.call([x, x, x, mask]); //(batch_size, input_seq_len, d_model)

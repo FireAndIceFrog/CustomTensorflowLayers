@@ -11,5 +11,5 @@ export declare class Encoder extends tf.layers.Layer {
     constructor(d_model: number, num_heads: number, dff: number, rate?: number);
     call(inputs: [tf.Tensor, tf.Tensor | undefined], { training }: {
         training: boolean;
-    }): tf.Tensor<tf.Rank>;
+    }): tf.Tensor<tf.Rank> | ([tf.Tensor<tf.Rank>, tf.Tensor<tf.Rank>] & tf.SymbolicTensor);
 }

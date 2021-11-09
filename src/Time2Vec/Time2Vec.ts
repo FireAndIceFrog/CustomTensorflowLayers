@@ -66,6 +66,9 @@ export class Time2Vec extends tf.layers.Layer {
         if(Array.isArray(inputs)){
             inputs = inputs[0]
         }
+        if(inputs instanceof tf.SymbolicTensor){
+            return inputs
+        }
 
         const bb = this.bb.read().slice([0], [inputs.shape[0]])
         const wb = this.wb.read().slice([0], [inputs.shape[0]])

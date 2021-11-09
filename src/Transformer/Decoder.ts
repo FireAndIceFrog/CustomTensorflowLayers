@@ -36,6 +36,9 @@ export class DecoderLayer extends tf.layers.Layer {
     }
 
     call(inputs: tf.Tensor[], kwargs: any): tf.Tensor[] {
+        if(inputs instanceof tf.SymbolicTensor){
+            return inputs
+        }
         const [x, encoder_outputs, look_ahead_mask, padding_mask] = inputs;
         let [attn1, attn_weights_block1] = this.mha1.call([x, x, x, look_ahead_mask])
         attn1 = this.dropout1.apply(attn1, kwargs) as tf.Tensor;
