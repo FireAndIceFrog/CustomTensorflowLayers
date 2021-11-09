@@ -98,14 +98,6 @@ function create_look_ahead_mask(seq_len) {
     return mask;
 }
 
-var Transformer = /** @class */ (function (_super) {
-    __extends(Transformer, _super);
-    function Transformer() {
-        return _super !== null && _super.apply(this, arguments) || this;
-    }
-    return Transformer;
-}(tf.layers.Layer));
-
 function scaled_attention(query, key, values, mask) {
     var matmul_qk = tf.matMul(query, key, false, true);
     var dk = tf.cast(key.shape[key.shape.length - 1], "float32");
@@ -261,7 +253,6 @@ var index = /*#__PURE__*/Object.freeze({
     __proto__: null,
     create_look_ahead_mask: create_look_ahead_mask,
     create_padding_mask: create_padding_mask,
-    Transformer: Transformer,
     MultiHeadAttention: MultiHeadAttention,
     scaled_attention: scaled_attention,
     Encoder: Encoder,
