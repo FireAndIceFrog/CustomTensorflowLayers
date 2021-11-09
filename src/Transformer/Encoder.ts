@@ -54,7 +54,8 @@ export class Encoder extends tf.layers.Layer {
     }
 
     call(inputs: [tf.Tensor, tf.Tensor | undefined], {training}: {training: boolean}) {
-        if(inputs instanceof tf.SymbolicTensor){
+        //@ts-ignore
+        if(inputs.__proto__.constructor.name === 'SymbolicTensor'){
             return inputs
         }
         let [x, mask] = inputs;

@@ -66,7 +66,7 @@ export class Time2Vec extends tf.layers.Layer {
         if(Array.isArray(inputs)){
             inputs = inputs[0]
         }
-        if(inputs instanceof tf.SymbolicTensor){
+        if(inputs.__proto__.constructor.name === 'SymbolicTensor'){
             return inputs
         }
 
