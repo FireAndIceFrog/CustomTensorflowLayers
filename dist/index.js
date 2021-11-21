@@ -41,34 +41,35 @@ class Time2Vec extends tf__namespace.layers.Layer {
         this.ba = this.addWeight("ba", [inputShape[0], this.k], "float32", tf__namespace.initializers.glorotUniform({}), undefined, true);
         super.build(inputShape);
     }
+    apply(input) {
+        if (Array.isArray(input)) {
+            input = input[0];
+        }
+        return new tf__namespace.SymbolicTensor("float32", this.computeOutputShape(input.shape), this, [input], null);
+    }
     call(inputs) {
         if (Array.isArray(inputs)) {
             inputs = inputs[0];
         }
-        try {
-            const bb = this.bb.read().slice([0], [inputs.shape[0]]);
-            const wb = this.wb.read().slice([0], [inputs.shape[0]]);
-            const ba = this.ba.read().slice([0], [inputs.shape[0]]);
-            const wa = this.wa.read().slice([0], [inputs.shape[1]]);
-            const bias = bb.add(wb.mul(inputs));
-            let posFunction;
-            if (this.p_activation === 'sin') {
-                posFunction = tf__namespace.sin;
-            }
-            else if (this.p_activation === 'cos') {
-                posFunction = tf__namespace.cos;
-            }
-            else {
-                throw new TypeError('Neither sine or cosine periodic activation be selected.');
-            }
-            const wgts = posFunction(ba.add(inputs.dot(wa)));
-            const concatLayer = bias.concat(wgts, -1);
-            this.output;
-            return concatLayer;
+        const bb = this.bb.read().slice([0], [inputs.shape[0]]);
+        const wb = this.wb.read().slice([0], [inputs.shape[0]]);
+        const ba = this.ba.read().slice([0], [inputs.shape[0]]);
+        const wa = this.wa.read().slice([0], [inputs.shape[1]]);
+        const bias = bb.add(wb.mul(inputs));
+        let posFunction;
+        if (this.p_activation === 'sin') {
+            posFunction = tf__namespace.sin;
         }
-        catch (e) {
-            return inputs;
+        else if (this.p_activation === 'cos') {
+            posFunction = tf__namespace.cos;
         }
+        else {
+            throw new TypeError('Neither sine or cosine periodic activation be selected.');
+        }
+        const wgts = posFunction(ba.add(inputs.dot(wa)));
+        const concatLayer = bias.concat(wgts, -1);
+        this.output;
+        return concatLayer;
     }
     computeOutputShape(input_shape) {
         return [input_shape[0], input_shape[1] * 2];
@@ -93,7 +94,19 @@ function create_look_ahead_mask(seq_len) {
 }
 
 function scaled_attention(query, key, values, mask) {
-    const matmul_qk = tf__namespace.matMul(query, key, false, true);
+    const matmul_qk = tf__namespace.layers.dot({ axes: -1 }).apply(query, key); // type hack
+    if (matmul_qk instanceof tf__namespace.SymbolicTensor) {
+        let finalTensor;
+        let finalTensorDot;
+        if (Array.isArray(matmul_qk) && matmul_qk[0] instanceof tf__namespace.SymbolicTensor) {
+            finalTensor = new tf__namespace.SymbolicTensor("float32", matmul_qk.shape, null, matmul_qk, {});
+        }
+        else {
+            finalTensor = new tf__namespace.SymbolicTensor("float32", matmul_qk.shape, null, [matmul_qk], {});
+        }
+        finalTensorDot = tf__namespace.layers.dot({ axes: -1 }).apply(finalTensor, values);
+        return [finalTensor, finalTensorDot];
+    }
     const dk = tf__namespace.cast(key.shape[key.shape.length - 1], "float32");
     // (Q * K) / sqrt(dk) is the scaled dot product of query and key
     const scaled_attention_logits = matmul_qk.div(tf__namespace.sqrt(dk));
@@ -125,10 +138,11 @@ class MultiHeadAttention extends tf__namespace.layers.Layer {
         return scaled_attention(q, k, v, mask);
     }
     split_heads(x, batch_size) {
-        x = tf__namespace.reshape(x, [batch_size, -1, this.num_heads, this.depth]);
-        return tf__namespace.transpose(x, [0, 2, 1, 3]);
+        const reshaped = tf__namespace.layers.reshape({ targetShape: [batch_size, -1, this.num_heads, this.depth] }).apply(x);
+        return tf__namespace.layers.permute({ dims: [0, 2, 1, 3] }).apply(reshaped);
     }
-    call([value, key, query, mask]) {
+    call(input) {
+        const [value, key, query, mask] = input;
         const batch_size = query.shape[0];
         let predQuery = this.wq.apply(query);
         let predKey = this.wk.apply(key);
@@ -139,8 +153,8 @@ class MultiHeadAttention extends tf__namespace.layers.Layer {
         // scaled_attention.shape == (batch_size, num_heads, seq_len_q, depth)
         // attention_weights.shape == (batch_size, num_heads, seq_len_q, seq_len_k)
         const [scaled_attention, attention_weights] = this.scaled_attention(predQuery, predKey, predValues, mask);
-        const transposed_scaled_attention = tf__namespace.transpose(scaled_attention, [0, 2, 1, 3]); // (batch_size, seq_len_q, num_heads, depth)
-        const concat_attention = tf__namespace.reshape(transposed_scaled_attention, [batch_size, -1, this.d_model]); // (batch_size, seq_len_q, d_model)
+        const transposed_scaled_attention = tf__namespace.layers.permute({ dims: [0, 2, 1, 3] }).apply((scaled_attention)); // (batch_size, seq_len_q, num_heads, depth)
+        const concat_attention = tf__namespace.layers.reshape({ targetShape: [batch_size, -1, this.d_model] }).apply(transposed_scaled_attention); // (batch_size, seq_len_q, d_model)
         const output = this.dense.apply(concat_attention); // (batch_size, seq_len_q, d_model)
         return [output, attention_weights];
     }
@@ -219,23 +233,22 @@ class DecoderLayer extends tf__namespace.layers.Layer {
         this.dropout2 = tf__namespace.layers.dropout({ rate: rate });
         this.dropout3 = tf__namespace.layers.dropout({ rate: rate });
     }
+    apply(inputs, kwargs) {
+        const result = this.call(inputs, kwargs);
+        return result;
+    }
     call(inputs, kwargs) {
-        try {
-            const [x, encoder_outputs, look_ahead_mask, padding_mask] = inputs;
-            let [attn1, attn_weights_block1] = this.mha1.call([x, x, x, look_ahead_mask]);
-            attn1 = this.dropout1.apply(attn1, kwargs);
-            const out1 = this.layernorm1.apply(attn1.add(x), kwargs);
-            let [attn2, attn_weights_block2] = this.mha2.call([encoder_outputs, encoder_outputs, out1, padding_mask]);
-            attn2 = this.dropout2.apply(attn2, kwargs);
-            const out2 = this.layernorm2.apply(attn2.add(out1), kwargs);
-            let ffn_output = this.ffn.apply(out2);
-            ffn_output = this.dropout3.apply(ffn_output, kwargs);
-            const out3 = this.layernorm3.apply(ffn_output.add(out2), kwargs);
-            return [out3, attn_weights_block1, attn_weights_block2];
-        }
-        catch (e) {
-            return inputs;
-        }
+        const [x, encoder_outputs, look_ahead_mask, padding_mask] = inputs;
+        let [attn1, attn_weights_block1] = this.mha1.call([x, x, x, look_ahead_mask]);
+        attn1 = this.dropout1.apply(attn1, kwargs);
+        const out1 = this.layernorm1.apply(attn1.add(x), kwargs);
+        let [attn2, attn_weights_block2] = this.mha2.call([encoder_outputs, encoder_outputs, out1, padding_mask]);
+        attn2 = this.dropout2.apply(attn2, kwargs);
+        const out2 = this.layernorm2.apply(attn2.add(out1), kwargs);
+        let ffn_output = this.ffn.apply(out2);
+        ffn_output = this.dropout3.apply(ffn_output, kwargs);
+        const out3 = this.layernorm3.apply(ffn_output.add(out2), kwargs);
+        return [out3, attn_weights_block1, attn_weights_block2];
     }
 }
 

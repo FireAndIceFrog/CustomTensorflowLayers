@@ -11,5 +11,6 @@ export declare class DecoderLayer extends tf.layers.Layer {
     dropout2: tf.layers.Layer;
     dropout3: tf.layers.Layer;
     constructor(d_model: number, num_heads: number, dff: number, rate?: number);
+    apply(inputs: tf.Tensor<tf.Rank>[], kwargs: any): tf.Tensor<tf.Rank>[];
     call(inputs: tf.Tensor[], kwargs: any): tf.Tensor[];
 }

@@ -9,6 +9,7 @@ export declare class Time2Vec extends tf.layers.Layer {
     ba: tf.LayerVariable;
     constructor(kernel_size: number, periodic_activation?: activationType);
     build(inputShape: tf.Shape): void;
+    apply(input: tf.SymbolicTensor): tf.Tensor | tf.Tensor[] | tf.SymbolicTensor;
     call(inputs: tf.Tensor | tf.Tensor[]): tf.Tensor | tf.Tensor[];
     computeOutputShape(input_shape: tf.Shape): tf.Shape;
 }
